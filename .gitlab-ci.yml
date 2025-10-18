@@ -1,0 +1,36 @@
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+    - when: never
+
+stages:
+  - test
+
+linux:
+  stage: test
+  image: ubuntu:24.04
+  interruptible: true
+  timeout: 30m
+  variables:
+    DEBIAN_FRONTEND: noninteractive
+  before_script:
+    - apt-get update
+    - apt-get install --yes --no-install-recommends ca-certificates cmake g++ libssl-dev ninja-build
+  script:
+    - >-
+      cmake -S . -B build -G Ninja
+      -DCMAKE_BUILD_TYPE=Debug
+      -DBUILD_SHARED_LIBS=OFF
+      -DSERVEZA_BUILD_EXAMPLES=ON
+      -DSERVEZA_BUILD_CPP20=ON
+      -DSERVEZA_BUILD_HTTP_EXAMPLES=ON
+      -DSERVEZA_BUILD_TLS_EXAMPLES=ON
+      -DSERVEZA_BUILD_TESTS=ON
+      -DSERVEZA_BUILD_HTTP_TESTS=ON
+      -DSERVEZA_BUILD_TLS_TESTS=ON
+      -DSERVEZA_USE_BUNDLED_OPENSSL=OFF
+    - cmake --build build --parallel 2
+    - ctest --test-dir build --output-on-failure

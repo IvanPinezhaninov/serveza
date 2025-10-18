@@ -1,0 +1,54 @@
+#============================================================================
+#
+# Copyright (C) 2026 Ivan Pinezhaninov <ivan.pinezhaninov@gmail.com>
+#
+# This file is part of the serveza which can be found at
+# https://github.com/IvanPinezhaninov/serveza/.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
+# THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+#============================================================================
+
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+if(NOT TARGET Threads::Threads)
+  find_dependency(Threads REQUIRED)
+endif()
+
+if(NOT TARGET Boost::asio_core AND NOT TARGET Boost::asio)
+  if(NOT TARGET Boost::headers AND NOT TARGET Boost::boost)
+    find_dependency(Boost @SERVEZA_RESOLVED_BOOST_VERSION@ REQUIRED)
+  endif()
+  if(TARGET Boost::headers)
+    set(serveza_boost_headers_target Boost::headers)
+  elseif(TARGET Boost::boost)
+    set(serveza_boost_headers_target Boost::boost)
+  else()
+    set(serveza_NOT_FOUND_MESSAGE "Boost headers are required")
+    set(serveza_FOUND FALSE)
+    return()
+  endif()
+  add_library(Boost::asio INTERFACE IMPORTED)
+  set_property(TARGET Boost::asio PROPERTY INTERFACE_LINK_LIBRARIES ${serveza_boost_headers_target})
+endif()
+
+if(NOT TARGET Boost::asio_core)
+  add_library(Boost::asio_core INTERFACE IMPORTED)
+  set_property(TARGET Boost::asio_core PROPERTY INTERFACE_LINK_LIBRARIES Boost::asio)
+endif()
+
+if(NOT TARGET serveza_dependencies::boost_asio)
+  add_library(serveza_dependencies::boost_asio INTERFACE IMPORTED)
+  set_property(TARGET serveza_dependencies::boost_asio PROPERTY INTERFACE_LINK_LIBRARIES Boost::asio_core)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/servezaTargets.cmake")
+check_required_components(serveza)

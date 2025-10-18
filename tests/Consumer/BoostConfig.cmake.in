@@ -1,0 +1,8 @@
+# Test-only Boost package that exercises servezaConfig.cmake dependency discovery.
+set(Boost_FOUND TRUE)
+set(Boost_VERSION @SERVEZA_TEST_BOOST_VERSION@)
+
+if(NOT TARGET Boost::headers)
+  add_library(Boost::headers INTERFACE IMPORTED GLOBAL)
+  set_property(TARGET Boost::headers PROPERTY INTERFACE_INCLUDE_DIRECTORIES "@SERVEZA_TEST_BOOST_INCLUDE_DIRS@")
+endif()

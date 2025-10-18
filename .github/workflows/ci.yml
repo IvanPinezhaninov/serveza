@@ -1,0 +1,342 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: gcc
+            cxx: g++
+            build_type: Debug
+            shared: "OFF"
+            sanitizers: "OFF"
+            cpp20: "OFF"
+          - compiler: clang
+            cxx: clang++
+            build_type: Debug
+            shared: "ON"
+            sanitizers: "ON"
+            cpp20: "ON"
+          - compiler: gcc
+            cxx: g++
+            build_type: Release
+            shared: "ON"
+            sanitizers: "OFF"
+            cpp20: "ON"
+          - compiler: clang
+            cxx: clang++
+            build_type: Release
+            shared: "OFF"
+            sanitizers: "OFF"
+            cpp20: "ON"
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Configure
+        env:
+          CXX: ${{ matrix.cxx }}
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DBUILD_SHARED_LIBS=${{ matrix.shared }}
+          -DSERVEZA_BUILD_EXAMPLES=ON
+          -DSERVEZA_BUILD_CPP20=${{ matrix.cpp20 }}
+          -DSERVEZA_BUILD_HTTP_EXAMPLES=ON
+          -DSERVEZA_BUILD_TLS_EXAMPLES=ON
+          -DSERVEZA_BUILD_TESTS=ON
+          -DSERVEZA_BUILD_HTTP_TESTS=ON
+          -DSERVEZA_BUILD_TLS_TESTS=ON
+          -DSERVEZA_USE_BUNDLED_OPENSSL=OFF
+          -DSERVEZA_ENABLE_SANITIZERS=${{ matrix.sanitizers }}
+      - run: cmake --build build --parallel 4
+      - run: ctest --test-dir build --output-on-failure
+
+  thread-sanitizer:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Configure
+        env:
+          CXX: g++
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DSERVEZA_BUILD_TESTS=ON
+          -DSERVEZA_BUILD_CPP20=ON
+          -DSERVEZA_ENABLE_THREAD_SANITIZER=ON
+      - run: cmake --build build --parallel 4
+      - run: ctest --test-dir build --output-on-failure
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install gcovr
+        run: pipx install gcovr==8.6
+      - name: Configure
+        env:
+          CXX: g++
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DSERVEZA_BUILD_TESTS=ON
+          -DSERVEZA_BUILD_CPP20=ON
+          -DSERVEZA_BUILD_HTTP_TESTS=ON
+          -DSERVEZA_BUILD_TLS_TESTS=ON
+          -DSERVEZA_USE_BUNDLED_OPENSSL=OFF
+          -DSERVEZA_ENABLE_COVERAGE=ON
+      - name: Test and generate report
+        run: cmake --build build --target ServezaCoverage --parallel 4
+
+      - name: Add summary
+        run: |
+          cat build/coverage/summary.txt >> "$GITHUB_STEP_SUMMARY"
+          cat build/coverage/raw/summary.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare Pages report
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          import xml.etree.ElementTree as ElementTree
+
+          report_directory = Path("build/coverage")
+          report = ElementTree.parse(report_directory / "coverage.xml")
+          percentage = float(report.getroot().attrib["line-rate"]) * 100
+          raw_report = ElementTree.parse(report_directory / "raw" / "coverage.xml")
+          raw_percentage = float(raw_report.getroot().attrib["line-rate"]) * 100
+
+          def color_for(value):
+              if value >= 90:
+                  return "brightgreen"
+              if value >= 80:
+                  return "green"
+              if value >= 70:
+                  return "yellowgreen"
+              if value >= 60:
+                  return "yellow"
+              return "red"
+
+          badge = {
+              "schemaVersion": 1,
+              "label": "Tested coverage",
+              "message": f"{percentage:.1f}%",
+              "color": color_for(percentage),
+          }
+          (report_directory / "coverage.json").write_text(
+              json.dumps(badge, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          raw_badge = {
+              "schemaVersion": 1,
+              "label": "Raw coverage",
+              "message": f"{raw_percentage:.1f}%",
+              "color": color_for(raw_percentage),
+          }
+          (report_directory / "raw-coverage.json").write_text(
+              json.dumps(raw_badge, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+
+      - name: Upload report
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: coverage-${{ github.sha }}
+          path: build/coverage
+          if-no-files-found: error
+
+      - name: Upload Pages report
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: build/coverage
+
+  coverage-pages:
+    name: Publish coverage
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: coverage
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy coverage report
+        id: deployment
+        uses: actions/deploy-pages@v5.0.1
+
+  documentation:
+    name: Documentation
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install Doxygen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen libboost-dev
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DSERVEZA_BUILD_DOCS=ON
+          -DSERVEZA_USE_BUNDLED_BOOST=OFF
+      - run: cmake --build build --target ServezaDocs
+
+  system-dependencies:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtest-dev libssl-dev ninja-build
+      - name: Fetch pinned Boost source
+        run: >-
+          cmake -S . -B dependency-source -G Ninja
+          -DSERVEZA_INSTALL=OFF
+          -DSERVEZA_BUILD_EXAMPLES=OFF
+          -DSERVEZA_BUILD_TESTS=OFF
+      - name: Install Boost as a system package
+        working-directory: dependency-source/_deps/serveza_boost-src
+        run: |
+          ./bootstrap.sh --prefix="${GITHUB_WORKSPACE}/dependency-prefix"
+          ./b2 --with-context --with-coroutine variant=release link=static threading=multi install -j4 -d0
+      - name: Configure without bundled dependencies
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH=${GITHUB_WORKSPACE}/dependency-prefix
+          -DSERVEZA_BUILD_EXAMPLES=ON
+          -DSERVEZA_BUILD_HTTP_EXAMPLES=ON
+          -DSERVEZA_BUILD_TLS_EXAMPLES=ON
+          -DSERVEZA_BUILD_TESTS=ON
+          -DSERVEZA_BUILD_CPP20=ON
+          -DSERVEZA_BUILD_HTTP_TESTS=ON
+          -DSERVEZA_BUILD_TLS_TESTS=ON
+          -DSERVEZA_USE_BUNDLED_BOOST=OFF
+          -DSERVEZA_USE_BUNDLED_GTEST=OFF
+          -DSERVEZA_USE_BUNDLED_OPENSSL=OFF
+      - run: cmake --build build --parallel 4
+      - run: ctest --test-dir build --output-on-failure
+
+  package:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shared: "OFF"
+            linkage: static
+          - shared: "ON"
+            linkage: shared
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install package tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libboost-dev rpm
+      - name: Configure
+        env:
+          CXX: g++
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_SHARED_LIBS=${{ matrix.shared }}
+          -DSERVEZA_INSTALL=ON
+          -DSERVEZA_USE_BUNDLED_BOOST=OFF
+      - run: cmake --build build --parallel 4
+      - run: cmake --build build --target package
+      - run: cmake --install build --prefix build/install
+      - name: Verify packages
+        working-directory: build/packages
+        run: |
+          ls serveza-*.tar.gz serveza-*.zip serveza-*.deb serveza-*.rpm
+          sha256sum --check *.sha256
+      - name: Upload packages
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: packages-${{ matrix.linkage }}
+          path: build/packages
+          if-no-files-found: error
+
+  macos:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26
+            build_type: Debug
+            shared: "OFF"
+          - runner: macos-26
+            build_type: Release
+            shared: "ON"
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: brew install ninja openssl@3
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DBUILD_SHARED_LIBS=${{ matrix.shared }}
+          -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)
+          -DSERVEZA_BUILD_EXAMPLES=ON
+          -DSERVEZA_BUILD_CPP20=ON
+          -DSERVEZA_BUILD_HTTP_EXAMPLES=ON
+          -DSERVEZA_BUILD_TLS_EXAMPLES=ON
+          -DSERVEZA_BUILD_TESTS=ON
+          -DSERVEZA_BUILD_HTTP_TESTS=ON
+          -DSERVEZA_BUILD_TLS_TESTS=ON
+          -DSERVEZA_USE_BUNDLED_OPENSSL=OFF
+      - run: cmake --build build --parallel 4
+      - run: ctest --test-dir build --output-on-failure
+
+  windows:
+    runs-on: windows-2025-vs2026
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build_type: Debug
+            shared: "OFF"
+          - build_type: Release
+            shared: "ON"
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Configure
+        shell: cmd
+        run: |
+          call "%ProgramFiles%\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          cmake -S . -B build -A x64 ^
+            -DBUILD_SHARED_LIBS=${{ matrix.shared }} ^
+            -DSERVEZA_BUILD_EXAMPLES=ON ^
+            -DSERVEZA_BUILD_CPP20=ON ^
+            -DSERVEZA_BUILD_HTTP_EXAMPLES=ON ^
+            -DSERVEZA_BUILD_TLS_EXAMPLES=ON ^
+            -DSERVEZA_BUILD_TESTS=ON ^
+            -DSERVEZA_BUILD_HTTP_TESTS=ON ^
+            -DSERVEZA_BUILD_TLS_TESTS=ON
+      - name: Build
+        shell: cmd
+        run: |
+          call "%ProgramFiles%\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          cmake --build build --config ${{ matrix.build_type }} --parallel 4
+      - name: Test
+        shell: cmd
+        run: |
+          call "%ProgramFiles%\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure

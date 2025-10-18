@@ -1,0 +1,82 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+        build_type: [Release]
+        c_compiler: [gcc, clang, cl]
+        include:
+          # Linux (GCC/Clang)
+          - os: ubuntu-24.04
+            c_compiler: gcc
+            cpp_compiler: g++
+          - os: ubuntu-24.04
+            c_compiler: clang
+            cpp_compiler: clang++
+          # Windows (MSVC)
+          - os: windows-2025
+            c_compiler: cl
+            cpp_compiler: cl
+          # macOS (GCC/Clang)
+          - os: macos-15
+            c_compiler: gcc
+            cpp_compiler: g++
+          - os: macos-15
+            c_compiler: clang
+            cpp_compiler: clang++
+        exclude:
+          - os: ubuntu-24.04
+            c_compiler: cl
+          - os: windows-2025
+            c_compiler: gcc
+          - os: windows-2025
+            c_compiler: clang
+          - os: macos-15
+            c_compiler: cl
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC Developer Command Prompt
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install NASM
+        if: runner.os == 'Windows'
+        uses: ilammy/setup-nasm@v1
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+          echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
+      - name: Print CMake version
+        run: cmake --version
+
+      - name: Configure CMake
+        run: >
+          cmake -B ${{ steps.strings.outputs.build-output-dir }}
+          -DSERVEZA_BUILD_EXAMPLES=ON
+          -DSERVEZA_BUILD_TESTS=ON
+          -DSERVEZA_USE_SYSTEM_BOOST=OFF
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -S ${{ github.workspace }}
+
+      - name: Build
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+      - name: Test
+        working-directory: ${{ steps.strings.outputs.build-output-dir }}
+        run: ctest --build-config ${{ matrix.build_type }} --rerun-failed --output-on-failure

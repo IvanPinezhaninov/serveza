@@ -1,0 +1,232 @@
+{
+  "version": 8,
+  "cmakeMinimumRequired": { "major": 3, "minor": 23 },
+
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/${presetName}/install"
+      }
+    },
+
+    {
+      "name": "enable-examples",
+      "hidden": true,
+      "cacheVariables": {
+        "SERVEZA_BUILD_EXAMPLES": "ON"
+      }
+    },
+
+    {
+      "name": "enable-tests",
+      "hidden": true,
+      "cacheVariables": {
+        "SERVEZA_BUILD_TESTS": "ON"
+      }
+    },
+
+    {
+      "name": "gcc-debug",
+      "displayName": "GCC Debug (Ninja)",
+      "inherits": [ "base", "enable-examples", "enable-tests" ],
+      "generator": "Ninja",
+      "condition": { "type": "notEquals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "environment": { "CC": "gcc", "CXX": "g++" },
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+
+    {
+      "name": "gcc-release",
+      "displayName": "GCC Release (Ninja)",
+      "inherits": [ "base", "enable-examples", "enable-tests" ],
+      "generator": "Ninja",
+      "condition": { "type": "notEquals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "environment": { "CC": "gcc", "CXX": "g++" },
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+
+    {
+      "name": "gcc-relwithdebinfo",
+      "displayName": "GCC RelWithDebInfo (Ninja)",
+      "inherits": [ "base", "enable-examples", "enable-tests" ],
+      "generator": "Ninja",
+      "condition": { "type": "notEquals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "environment": { "CC": "gcc", "CXX": "g++" },
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+    },
+
+    {
+      "name": "clang-debug",
+      "displayName": "Clang Debug (Ninja)",
+      "inherits": [ "base", "enable-examples", "enable-tests" ],
+      "generator": "Ninja",
+      "condition": { "type": "notEquals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "environment": { "CC": "clang", "CXX": "clang++" },
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+
+    {
+      "name": "clang-release",
+      "displayName": "Clang Release (Ninja)",
+      "inherits": [ "base", "enable-examples", "enable-tests" ],
+      "generator": "Ninja",
+      "condition": { "type": "notEquals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "environment": { "CC": "clang", "CXX": "clang++" },
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+
+    {
+      "name": "clang-relwithdebinfo",
+      "displayName": "Clang RelWithDebInfo (Ninja)",
+      "inherits": [ "base", "enable-examples", "enable-tests" ],
+      "generator": "Ninja",
+      "condition": { "type": "notEquals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "environment": { "CC": "clang", "CXX": "clang++" },
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+    },
+
+    {
+      "name": "asan-ubsan",
+      "displayName": "Clang ASAN+UBSAN (Debug)",
+      "inherits": "clang-debug",
+      "cacheVariables": {
+        "CMAKE_C_FLAGS_DEBUG":   "-fsanitize=address,undefined -fno-omit-frame-pointer -DBOOST_USE_ASAN",
+        "CMAKE_CXX_FLAGS_DEBUG": "-fsanitize=address,undefined -fno-omit-frame-pointer -DBOOST_USE_ASAN",
+        "CMAKE_EXE_LINKER_FLAGS_DEBUG": "-fsanitize=address,undefined",
+        "CMAKE_SHARED_LINKER_FLAGS_DEBUG": "-fsanitize=address,undefined"
+      }
+    },
+
+    {
+      "name": "msvc-vs",
+      "displayName": "MSVC (Visual Studio 2022)",
+      "inherits": [ "base", "enable-examples", "enable-tests" ],
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/${presetName}/install/$<CONFIG>"
+      }
+    }
+  ],
+
+  "buildPresets": [
+    {
+      "name": "gcc-debug",
+      "configurePreset": "gcc-debug"
+    },
+
+    {
+      "name": "gcc-release",
+      "configurePreset": "gcc-release"
+    },
+
+    {
+      "name": "gcc-relwithdebinfo",
+      "configurePreset": "gcc-relwithdebinfo"
+    },
+
+    {
+      "name": "clang-debug",
+      "configurePreset": "clang-debug"
+    },
+
+    {
+      "name": "clang-release",
+      "configurePreset": "clang-release"
+    },
+
+    {
+      "name": "clang-relwithdebinfo",
+      "configurePreset": "clang-relwithdebinfo"
+    },
+
+    {
+      "name": "asan-ubsan",
+      "configurePreset": "asan-ubsan"
+    },
+
+    {
+      "name": "msvc-dbg",
+      "configurePreset": "msvc-vs",
+      "configuration": "Debug"
+    },
+
+    {
+      "name": "msvc-rel",
+      "configurePreset": "msvc-vs",
+      "configuration": "Release"
+    }
+  ],
+
+  "testPresets": [
+    {
+      "name": "gcc-debug",
+      "displayName": "GCC Debug (ctest)",
+      "configurePreset": "gcc-debug",
+      "output": { "outputOnFailure": true }
+    },
+
+    {
+      "name": "gcc-release",
+      "displayName": "GCC Release (ctest)",
+      "configurePreset": "gcc-release",
+      "output": { "outputOnFailure": true }
+    },
+
+    {
+      "name": "gcc-relwithdebinfo",
+      "displayName": "GCC RelWithDebInfo (ctest)",
+      "configurePreset": "gcc-relwithdebinfo",
+      "output": { "outputOnFailure": true }
+    },
+
+    {
+      "name": "clang-debug",
+      "displayName": "Clang Debug (ctest)",
+      "configurePreset": "clang-debug",
+      "output": { "outputOnFailure": true }
+    },
+
+    {
+      "name": "clang-release",
+      "displayName": "Clang Release (ctest)",
+      "configurePreset": "clang-release",
+      "output": { "outputOnFailure": true }
+    },
+
+    {
+      "name": "clang-relwithdebinfo",
+      "displayName": "Clang RelWithDebInfo (ctest)",
+      "configurePreset": "clang-relwithdebinfo",
+      "output": { "outputOnFailure": true }
+    },
+
+    {
+      "name": "asan-ubsan",
+      "displayName": "ASAN+UBSAN (ctest)",
+      "configurePreset": "asan-ubsan",
+      "output": { "outputOnFailure": true }
+    },
+
+    {
+      "name": "msvc-dbg",
+      "displayName": "MSVC Debug (ctest)",
+      "configurePreset": "msvc-vs",
+      "configuration": "Debug",
+      "output": { "outputOnFailure": true }
+    },
+
+    {
+      "name": "msvc-rel",
+      "displayName": "MSVC Release (ctest)",
+      "configurePreset": "msvc-vs",
+      "configuration": "Release",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+if(NOT TARGET OpenSSL::Crypto)
+  add_library(OpenSSL::Crypto STATIC IMPORTED GLOBAL)
+  set_target_properties(OpenSSL::Crypto PROPERTIES
+    IMPORTED_LOCATION "@OPENSSL_CRYPTO_LIBRARY@"
+    INTERFACE_INCLUDE_DIRECTORIES "@OPENSSL_INCLUDE_DIR@"
+  )
+  if(WIN32)
+    find_library(CRYPT32_LIBRARY Crypt32 REQUIRED)
+    target_link_libraries(OpenSSL::Crypto INTERFACE ${CRYPT32_LIBRARY})
+  elseif(UNIX AND NOT APPLE)
+    target_link_libraries(OpenSSL::Crypto INTERFACE ${CMAKE_DL_LIBS})
+  endif()
+  add_dependencies(OpenSSL::Crypto build_openssl)
+endif()
+
+if(NOT TARGET OpenSSL::SSL)
+  add_library(OpenSSL::SSL STATIC IMPORTED GLOBAL)
+  set_target_properties(OpenSSL::SSL PROPERTIES
+    IMPORTED_LOCATION "@OPENSSL_SSL_LIBRARY@"
+    INTERFACE_INCLUDE_DIRECTORIES "@OPENSSL_INCLUDE_DIR@"
+  )
+  target_link_libraries(OpenSSL::SSL INTERFACE OpenSSL::Crypto)
+  add_dependencies(OpenSSL::SSL build_openssl)
+endif()
+
+set(OpenSSL_ROOT_DIR "@OPENSSL_INSTALL_DIR@")
+set(OpenSSL_INCLUDE_DIR "@OPENSSL_INCLUDE_DIR@")
+set(OpenSSL_CRYPTO_LIBRARY "@OPENSSL_CRYPTO_LIBRARY@")
+set(OpenSSL_SSL_LIBRARY "@OPENSSL_SSL_LIBRARY@")
+set(OpenSSL_LIBRARIES "@OPENSSL_CRYPTO_LIBRARY@;@OPENSSL_SSL_LIBRARY@")

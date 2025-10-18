@@ -1,0 +1,77 @@
+[
+  {
+    "label": "cmake: configure (gcc-debug)",
+    "command": "cmake --preset gcc-debug",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "cmake: configure (clang-debug)",
+    "command": "cmake --preset clang-debug",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "cmake: configure (asan-ubsan)",
+    "command": "cmake --preset asan-ubsan",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+
+  {
+    "label": "build (gcc-debug)",
+    "command": "cmake --build --preset gcc-debug -j",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "depends_on": ["cmake: configure (gcc-debug)"]
+  },
+  {
+    "label": "build (clang-debug)",
+    "command": "cmake --build --preset clang-debug -j",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "depends_on": ["cmake: configure (clang-debug)"]
+  },
+  {
+    "label": "build (asan-ubsan)",
+    "command": "cmake --build --preset asan-ubsan -j",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "depends_on": ["cmake: configure (asan-ubsan)"]
+  },
+
+  {
+    "label": "build (gcc-release)",
+    "command": "cmake --build --preset gcc-release -j",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "build (clang-release)",
+    "command": "cmake --build --preset clang-release -j",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+
+  {
+    "label": "test (gcc-debug)",
+    "command": "ctest --preset gcc-debug --output-on-failure",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "depends_on": ["build (gcc-debug)"]
+  },
+  {
+    "label": "test (clang-debug)",
+    "command": "ctest --preset clang-debug --output-on-failure",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "depends_on": ["build (clang-debug)"]
+  },
+  {
+    "label": "test (asan-ubsan)",
+    "command": "ctest --preset asan-ubsan --output-on-failure",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "depends_on": ["build (asan-ubsan)"]
+  },
+
+  {
+    "label": "clean (gcc-debug)",
+    "command": "cmake --build --preset gcc-debug --target clean",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "clean (clang-debug)",
+    "command": "cmake --build --preset clang-debug --target clean",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  }
+]

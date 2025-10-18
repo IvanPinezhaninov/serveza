@@ -1,0 +1,16 @@
+{
+  "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
+  "cmake.buildBeforeRun": true,
+  "editor.formatOnSave": true,
+  "[cpp]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+  "[c]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+  "C_Cpp.clang_format_style": "file",
+  "C_Cpp.clang_format_fallbackStyle": "none",
+  "files.associations": {
+    "optional": "cpp"
+  }
+}

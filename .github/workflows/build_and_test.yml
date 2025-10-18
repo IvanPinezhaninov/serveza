@@ -1,0 +1,107 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux
+          - os: ubuntu-24.04
+            configure_preset: gcc-release
+            build_preset: gcc-release
+            build_dir: build/gcc-release
+            use_ccache: true
+
+          - os: ubuntu-24.04
+            configure_preset: clang-release
+            build_preset: clang-release
+            build_dir: build/clang-release
+            use_ccache: true
+
+          # macOS
+          - os: macos-15
+            configure_preset: gcc-release
+            build_preset: gcc-release
+            build_dir: build/gcc-release
+            use_ccache: true
+
+          - os: macos-15
+            configure_preset: clang-release
+            build_preset: clang-release
+            build_dir: build/clang-release
+            use_ccache: true
+
+          # Windows (MSVC multi-config; Release build preset)
+          - os: windows-2025
+            configure_preset: msvc-vs
+            build_preset: msvc-rel
+            build_dir: build/msvc-vs
+            use_ccache: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC Developer Command Prompt
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install NASM
+        if: runner.os == 'Windows'
+        uses: ilammy/setup-nasm@v1
+
+      - name: Print CMake version
+        run: cmake --version
+
+      # ---- Tools for faster builds (ccache) ----
+      - name: Install ccache (Ubuntu)
+        if: runner.os == 'Linux' && matrix.use_ccache
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache
+
+      - name: Install ccache (macOS)
+        if: runner.os == 'macOS' && matrix.use_ccache
+        shell: bash
+        run: |
+          brew update
+          brew install ccache
+
+      - name: Cache (FetchContent + ccache)
+        uses: actions/cache@v4
+        with:
+          path: |
+            .fc
+            .ccache
+          key: >
+            ${{ runner.os }}-${{ matrix.build_preset }}-
+            ${{ hashFiles('CMakePresets.json', '**/CMakeLists.txt', '**/*.cmake') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.build_preset }}-
+            ${{ runner.os }}-
+
+      # ---- Configure ----
+      - name: Configure (preset)
+        shell: bash
+        run: |
+          cmake --preset ${{ matrix.configure_preset }} \
+            -DSERVEZA_USE_SYSTEM_BOOST=OFF \
+            -DFETCHCONTENT_BASE_DIR="${{ github.workspace }}/.fc" \
+            -DCMAKE_C_COMPILER_LAUNCHER=$([ "${{ matrix.use_ccache }}" = "true" ] && echo ccache || echo "") \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=$([ "${{ matrix.use_ccache }}" = "true" ] && echo ccache || echo "")
+
+      # ---- Build ----
+      - name: Build (preset)
+        run: cmake --build --preset ${{ matrix.build_preset }}
+
+      # ---- Test ----
+      - name: Test
+        working-directory: ${{ matrix.build_dir }}
+        run: ctest --build-config Release --rerun-failed --output-on-failure
